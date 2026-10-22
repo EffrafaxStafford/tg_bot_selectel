@@ -12,6 +12,10 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 if not TELEGRAM_CHAT_ID:
     raise RuntimeError("В .env не указан TELEGRAM_CHAT_ID")
 TELEGRAM_CHAT_ID = int(TELEGRAM_CHAT_ID)
+TELEGRAM_OWNER_ID = os.getenv("TELEGRAM_OWNER_ID")
+if not TELEGRAM_OWNER_ID:
+    raise RuntimeError("В .env не указан TELEGRAM_OWNER_ID")
+TELEGRAM_OWNER_ID = int(TELEGRAM_OWNER_ID)
 
 SELECTEL_TOKEN_TYPE = os.getenv("SELECTEL_TOKEN_TYPE", "static").lower()
 if SELECTEL_TOKEN_TYPE not in {"static", "iam"}:

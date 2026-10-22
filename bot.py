@@ -1,17 +1,21 @@
 import asyncio
 import httpx
 
-from aiogram import Bot, Dispatcher
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import CallbackQuery, Message
 from selectel import get_forecast_hours
 from reminder import balance_reminder
+from collection import (
+    get_collection,
+    reset_collection,
+    toggle_payment,
+)
+from collection_message import format_collection_text, send_collection
 from config import (
     BOT_TOKEN,
     TELEGRAM_CHAT_ID,
-    CONTRIBUTION_AMOUNT,
-    PAYMENT_URL,
+    TELEGRAM_OWNER_ID,
 )
 
 
@@ -61,24 +65,79 @@ async def status_handler(message: Message):
 
 @dp.message(Command("pay"))
 async def pay_handler(message: Message):
-    """Отправляет сообщение с кнопкой для перевода средств на Selectel."""
     if message.chat.id != TELEGRAM_CHAT_ID:
         return
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"Перевести ({CONTRIBUTION_AMOUNT} руб.)",
-                    url=PAYMENT_URL,
-                )
-            ]
-        ]
-    )
+    collection = get_collection()
+
+    if not collection["active"]:
+        await message.answer(
+            "Активного сбора сейчас нет."
+        )
+        return
 
     await message.answer(
-        "Сбор на оплату сервера Selectel (на Сбер)",
-        reply_markup=keyboard,
+        "Актуальный сбор в сообщении выше.",
+        reply_to_message_id=collection["message_id"],
+        allow_sending_without_reply=True,
+    )
+
+
+@dp.callback_query(F.data == "toggle_payment")
+async def payment_callback(callback: CallbackQuery):
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    collection = get_collection()
+
+    if (
+        not collection["active"]
+        or callback.message.message_id != collection["message_id"]
+    ):
+        await callback.answer(
+            "Этот сбор уже неактивен.",
+            show_alert=True,
+        )
+        return
+
+    is_paid = toggle_payment(
+        user_id=callback.from_user.id,
+        name=callback.from_user.full_name,
+    )
+
+    collection = get_collection()
+
+    if is_paid:
+        await callback.answer("Оплата отмечена")
+    else:
+        await callback.answer("Отметка снята")
+
+    await callback.message.edit_text(
+        format_collection_text(collection),
+        reply_markup=callback.message.reply_markup,
+    )
+
+
+@dp.message(Command("new_collection"))
+async def new_collection_handler(message: Message):
+    if (
+        message.chat.id != TELEGRAM_CHAT_ID
+        or message.from_user is None
+    ):
+        return
+
+    if message.from_user.id != TELEGRAM_OWNER_ID:
+        await message.answer(
+            "Создать новый сбор может только владелец бота."
+        )
+        return
+
+    reset_collection()
+
+    await send_collection(
+        bot=message.bot,
+        chat_id=message.chat.id,
     )
 
 
