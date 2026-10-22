@@ -4,6 +4,8 @@ import httpx
 from aiogram.filters import Command, CommandStart
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import CallbackQuery, Message
+from aiogram.exceptions import TelegramBadRequest
+
 from selectel import get_forecast_hours
 from reminder import balance_reminder
 from collection import (
@@ -20,6 +22,7 @@ from config import (
 
 
 dp = Dispatcher()
+payment_lock = asyncio.Lock()
 
 
 @dp.message(CommandStart())
@@ -76,11 +79,22 @@ async def pay_handler(message: Message):
         )
         return
 
-    await message.answer(
-        "Актуальный сбор в сообщении выше.",
-        reply_to_message_id=collection["message_id"],
-        allow_sending_without_reply=True,
-    )
+    try:
+        await message.answer(
+            "Актуальный сбор в сообщении выше.",
+            reply_to_message_id=collection["message_id"],
+            allow_sending_without_reply=False,
+        )
+    except TelegramBadRequest:
+        await message.answer(
+            "Сообщение сбора было удалено. Создаю новое."
+        )
+
+        await send_collection(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            force=True,
+        )
 
 
 @dp.callback_query(F.data == "toggle_payment")
@@ -89,34 +103,35 @@ async def payment_callback(callback: CallbackQuery):
         await callback.answer()
         return
 
-    collection = get_collection()
+    async with payment_lock:
+        collection = get_collection()
 
-    if (
-        not collection["active"]
-        or callback.message.message_id != collection["message_id"]
-    ):
-        await callback.answer(
-            "Этот сбор уже неактивен.",
-            show_alert=True,
+        if (
+            not collection["active"]
+            or callback.message.message_id != collection["message_id"]
+        ):
+            await callback.answer(
+                "Этот сбор уже неактивен.",
+                show_alert=True,
+            )
+            return
+
+        is_paid = toggle_payment(
+            user_id=callback.from_user.id,
+            name=callback.from_user.full_name,
         )
-        return
 
-    is_paid = toggle_payment(
-        user_id=callback.from_user.id,
-        name=callback.from_user.full_name,
-    )
+        collection = get_collection()
 
-    collection = get_collection()
+        if is_paid:
+            await callback.answer("Оплата отмечена")
+        else:
+            await callback.answer("Отметка снята")
 
-    if is_paid:
-        await callback.answer("Оплата отмечена")
-    else:
-        await callback.answer("Отметка снята")
-
-    await callback.message.edit_text(
-        format_collection_text(collection),
-        reply_markup=callback.message.reply_markup,
-    )
+        await callback.message.edit_text(
+            format_collection_text(collection),
+            reply_markup=callback.message.reply_markup,
+        )
 
 
 @dp.message(Command("new_collection"))
@@ -133,12 +148,13 @@ async def new_collection_handler(message: Message):
         )
         return
 
-    reset_collection()
+    async with payment_lock:
+        reset_collection()
 
-    await send_collection(
-        bot=message.bot,
-        chat_id=message.chat.id,
-    )
+        await send_collection(
+            bot=message.bot,
+            chat_id=message.chat.id,
+        )
 
 
 async def main():

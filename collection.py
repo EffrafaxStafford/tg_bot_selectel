@@ -33,8 +33,9 @@ def save_collection(collection: dict) -> None:
 
 
 def start_collection(message_id: int) -> None:
-    """Создаёт новый активный сбор."""
-    collection = empty_collection()
+    """Активирует сбор и сохраняет ID его сообщения."""
+
+    collection = get_collection()
     collection["active"] = True
     collection["message_id"] = message_id
     save_collection(collection)

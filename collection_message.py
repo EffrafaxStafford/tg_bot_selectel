@@ -41,12 +41,12 @@ def create_collection_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-async def send_collection(bot: Bot, chat_id: int) -> int:
-    """Отправляет сбор, если активного сбора ещё нет."""
+async def send_collection(bot: Bot, chat_id: int, force: bool = False) -> int:
+    """Отправляет сообщение активного сбора."""
 
     collection = get_collection()
 
-    if collection["active"]:
+    if collection["active"] and not force:
         return collection["message_id"]
 
     message = await bot.send_message(
