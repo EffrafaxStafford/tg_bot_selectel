@@ -3,6 +3,7 @@ import httpx
 
 from aiogram.filters import Command, CommandStart
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest
 
@@ -18,6 +19,7 @@ from config import (
     BOT_TOKEN,
     TELEGRAM_CHAT_ID,
     TELEGRAM_OWNER_ID,
+    TELEGRAM_PROXY_URL,
 )
 
 
@@ -158,7 +160,12 @@ async def new_collection_handler(message: Message):
 
 
 async def main():
-    bot = Bot(token=BOT_TOKEN)
+    session = AiohttpSession(proxy=TELEGRAM_PROXY_URL)
+    bot = Bot(
+        token=BOT_TOKEN,
+        session=session,
+    )
+
     asyncio.create_task(balance_reminder(bot))
     await dp.start_polling(bot)
 

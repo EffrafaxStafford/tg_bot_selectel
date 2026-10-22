@@ -16,6 +16,7 @@ TELEGRAM_OWNER_ID = os.getenv("TELEGRAM_OWNER_ID")
 if not TELEGRAM_OWNER_ID:
     raise RuntimeError("В .env не указан TELEGRAM_OWNER_ID")
 TELEGRAM_OWNER_ID = int(TELEGRAM_OWNER_ID)
+TELEGRAM_PROXY_URL = os.getenv("TELEGRAM_PROXY_URL")
 
 SELECTEL_TOKEN_TYPE = os.getenv("SELECTEL_TOKEN_TYPE", "static").lower()
 if SELECTEL_TOKEN_TYPE not in {"static", "iam"}:
