@@ -1,26 +1,18 @@
 import asyncio
-import os
 import httpx
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message
-from dotenv import load_dotenv
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
 from selectel import get_forecast_hours
-
-
-load_dotenv()
-
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))
-WARNING_THRESHOLDS_HOURS = [int(x) for x in os.getenv(
-    "WARNING_THRESHOLDS_HOURS", "168,72,24,6").split(",")]
-
-last_sent_threshold = None
-
-if not BOT_TOKEN:
-    raise RuntimeError("В .env не указан TELEGRAM_BOT_TOKEN")
+from reminder import balance_reminder
+from config import (
+    BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
+    CONTRIBUTION_AMOUNT,
+    PAYMENT_URL,
+)
 
 
 dp = Dispatcher()
@@ -67,47 +59,27 @@ async def status_handler(message: Message):
     )
 
 
-async def balance_reminder(bot: Bot):
-    """Отправляет сообщение в чат, если баланс заканчивается."""
-    global last_sent_threshold
-    while True:
-        try:
-            hours = await get_forecast_hours()
+@dp.message(Command("pay"))
+async def pay_handler(message: Message):
+    """Отправляет сообщение с кнопкой для перевода средств на Selectel."""
+    if message.chat.id != TELEGRAM_CHAT_ID:
+        return
 
-            current_threshold = min(
-                (
-                    threshold
-                    for threshold in WARNING_THRESHOLDS_HOURS
-                    if hours <= threshold
-                ),
-                default=None,
-            )
-
-            # Баланса снова хватает больше чем на семь дней
-            if current_threshold is None:
-                last_sent_threshold = None
-            # Прогноз ухудшился и достиг нового порога
-            elif (
-                last_sent_threshold is None
-                or current_threshold < last_sent_threshold
-            ):
-                await bot.send_message(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    text=(
-                        "Заканчиваются средства на Selectel!\n"
-                        f"Их хватит примерно на {hours / 24:.1f} дн."
-                    ),
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"Перевести {CONTRIBUTION_AMOUNT} руб.",
+                    url=PAYMENT_URL,
                 )
+            ]
+        ]
+    )
 
-                last_sent_threshold = current_threshold
-            # Баланс увеличился, но всё ещё ниже семи дней
-            elif current_threshold > last_sent_threshold:
-                last_sent_threshold = current_threshold
-
-        except Exception as error:
-            print(f"Ошибка проверки баланса: {error}")
-
-        await asyncio.sleep(60 * 60)
+    await message.answer(
+        "Сбор на оплату сервера Selectel (на Сбер)",
+        reply_markup=keyboard,
+    )
 
 
 async def main():
