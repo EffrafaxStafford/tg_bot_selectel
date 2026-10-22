@@ -69,7 +69,7 @@ async def pay_handler(message: Message):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"Перевести {CONTRIBUTION_AMOUNT} руб.",
+                    text=f"Перевести ({CONTRIBUTION_AMOUNT} руб.)",
                     url=PAYMENT_URL,
                 )
             ]
